@@ -1,6 +1,6 @@
 # GeoTIFF-Inspektor
 
-**Version 26.6.1** — Online: https://mradeck.github.io/geotiff-inspector/
+**Version 26.6.2** — Online: https://mradeck.github.io/geotiff-inspector/
 
 GeoTIFF-Inspektor ist eine Single-Page-App. Sie liest die Metadaten von GeoTIFF-Dateien aus und ordnet die Dateien fachlich ein: Geoidgitter, Höhensystem-Differenzgitter, Lage-Transformationsgitter, Gelände-/Oberflächenmodell, Orthofoto oder sonstiges Raster. Außerdem zeigt sie die Dateien lagerichtig auf einer Karte. Gerechnet wird ausschließlich lokal im Browser, es wird keine Datei hochgeladen. Online geladen werden nur die OpenStreetMap-Kacheln der Grundkarte.
 
