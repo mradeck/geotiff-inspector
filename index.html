@@ -18,101 +18,156 @@
 </script>
 <link rel="stylesheet" href="vendor/leaflet.css" />
 <style>
-  /* Neutrales Farbschema. Dunkel ist die Grundlage, hell per data-theme oder Systemeinstellung. */
+  /* Inter, selbst gehostet (SIL OFL 1.1, vendor/fonts/OFL.txt). Keine externen Font-Dienste. */
+  @font-face {
+    font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;
+    src: url(vendor/fonts/inter-latin-ext-wght-normal.woff2) format("woff2-variations");
+    unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
+  }
+  @font-face {
+    font-family: "Inter Variable"; font-style: normal; font-display: swap; font-weight: 100 900;
+    src: url(vendor/fonts/inter-latin-wght-normal.woff2) format("woff2-variations");
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+  }
+  /* Neutrales Farbschema (Grau/Blau) der öffentlichen Apps. Dunkel ist die Grundlage, hell per data-theme oder Systemeinstellung. */
   :root {
     color-scheme: dark;
+    --font-ui: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
     --bg: #14171c; --panel: #1d2229; --panel2: #232a33; --border: #333c48;
     --text: #e6ebf1; --muted: #93a0af; --accent: #4da3ff; --ok: #46c07a; --warn: #e0a13c; --err: #e05c5c;
+    --accent-soft: color-mix(in srgb, var(--accent) 12%, transparent);
+    --topbar-bg: rgba(20, 23, 28, .9);
     --badge-geoid: #7b61ff; --badge-ortho: #2f9e68; --badge-dem: #b36d1f; --badge-grid: #2a8fc0; --badge-other: #6b7684;
   }
   :root[data-theme="light"] {
     color-scheme: light;
     --bg: #f3f5f8; --panel: #ffffff; --panel2: #eef1f5; --border: #d4dae2;
     --text: #1b2430; --muted: #5d6a79; --accent: #1f6fd1; --ok: #23824f; --warn: #a86400; --err: #c0392b;
+    --accent-soft: rgba(31, 111, 209, .1); --topbar-bg: rgba(255, 255, 255, .9);
   }
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
       color-scheme: light;
       --bg: #f3f5f8; --panel: #ffffff; --panel2: #eef1f5; --border: #d4dae2;
       --text: #1b2430; --muted: #5d6a79; --accent: #1f6fd1; --ok: #23824f; --warn: #a86400; --err: #c0392b;
+      --accent-soft: rgba(31, 111, 209, .1); --topbar-bg: rgba(255, 255, 255, .9);
     }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
-  header.top { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-  header.top h1 { margin: 0; font-size: 20px; white-space: nowrap; }
-  header.top h1 .ver { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
-  header.top p { margin: 0; color: var(--muted); flex: 1; min-width: 240px; font-size: 13px; }
-  .top-actions { display: flex; gap: 6px; }
-  .icon-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; }
-  .icon-btn svg { display: block; }
-  .flag { width: 21px; height: 14px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 13px; line-height: 1.5; font-synthesis: none; display: flex; flex-direction: column; }
+  button, input, select { font: inherit; }
+  a { color: var(--accent); }
+  code { font-family: var(--font-mono); font-size: .92em; }
+
+  /* Kopfleiste (wie Geodata Inspector & Cleaner) */
+  .topbar { flex: none; min-height: 72px; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 28px; padding: 10px 22px; border-bottom: 1px solid var(--border); background: var(--topbar-bg); backdrop-filter: blur(16px); position: relative; z-index: 1100; }
+  .brand { display: flex; align-items: center; gap: 12px; color: var(--text); text-decoration: none; }
+  .brand-copy { min-width: 0; }
+  .brand-title-line { display: flex; align-items: baseline; gap: 7px; white-space: nowrap; }
+  .brand strong { display: block; font-size: 15px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; }
+  .brand-version { color: var(--muted); font-size: 9px; font-weight: 450; letter-spacing: 0; white-space: nowrap; }
+  .brand small { display: block; color: var(--accent); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; margin-top: 2px; }
+  .brand-mark { flex: none; width: 34px; height: 34px; border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent); border-radius: 9px; display: grid; place-items: center; color: var(--accent); }
+  .brand-mark svg { display: block; }
+  .privacy-chip { margin-right: auto; color: var(--muted); background: color-mix(in srgb, var(--accent) 6%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent); padding: 8px 12px; border-radius: 999px; font-size: 11px; letter-spacing: .04em; white-space: nowrap; }
+  .privacy-chip > span:first-child { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); margin-right: 7px; box-shadow: 0 0 10px var(--ok); }
+  .top-actions { display: flex; gap: 8px; margin-left: auto; }
+  .button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border); color: var(--text); background: transparent; border-radius: 8px; padding: 9px 13px; text-decoration: none; cursor: pointer; transition: .2s ease; font-size: 12px; line-height: 1.2; }
+  .button:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+  .button:disabled { opacity: .35; cursor: not-allowed; }
+  .top-actions .button { height: 36px; }
+  .icon-button { width: 39px; padding: 0; }
+  .icon-button svg, .theme-button svg { display: block; }
+  .theme-button { min-width: 39px; padding-inline: 10px; }
+  .language-button { min-width: 67px; font-family: var(--font-mono); }
+  .flag { display: block; width: 21px; height: 14px; border-radius: 1px; box-shadow: 0 0 0 1px var(--border); }
+  .header-menu { position: relative; margin: 0; }
+  .header-menu summary { list-style: none; user-select: none; }
+  .header-menu summary::-webkit-details-marker { display: none; }
+  .header-menu[open] summary { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); }
+  .header-menu-panel { position: absolute; top: calc(100% + 7px); right: 0; z-index: 1200; min-width: 150px; display: grid; gap: 4px; padding: 6px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel); box-shadow: 0 14px 35px rgba(0,0,0,.34); }
+  .header-menu-panel button { width: 100%; padding: 9px 10px; border: 0; border-radius: 6px; color: var(--text); background: transparent; cursor: pointer; text-align: left; font-size: 11px; }
+  .header-menu-panel button:hover, .header-menu-panel button:focus-visible { color: var(--accent); background: var(--accent-soft); outline: none; }
+
+  /* Arbeitsfläche */
   .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 1.1fr); }
-  .left { overflow-y: auto; padding: 12px 16px 32px; }
+  .left { overflow-y: auto; padding: 22px 22px 32px; background: var(--bg); }
   .right { position: relative; border-left: 1px solid var(--border); min-height: 320px; }
-  #map { position: absolute; inset: 0; background: #aad3df; }
+  #map { position: absolute; inset: 0; background: #dfe4ea; }
   @media (max-width: 900px) {
     body { display: block; }
     .layout { grid-template-columns: 1fr; }
     .right { height: 60vh; border-left: 0; border-bottom: 1px solid var(--border); order: -1; }
     .left { overflow: visible; }
+    .privacy-chip { display: none; }
   }
-  .drop { display: block; border: 2px dashed var(--border); border-radius: 10px; padding: 18px 14px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
-  .drop.drag { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
-  .drop strong { color: var(--text); }
+  .eyebrow { color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; margin: 0 0 12px; }
+  .intro h1 { font-size: 24px; line-height: 1.12; font-weight: 600; margin: 0; max-width: 520px; }
+  .intro p { color: var(--muted); font-size: 12px; line-height: 1.65; margin: 12px 0 18px; max-width: 620px; }
+  .drop { min-height: 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; border: 1px dashed color-mix(in srgb, var(--accent) 32%, transparent); border-radius: 12px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, transparent), color-mix(in srgb, var(--accent) 1.5%, transparent)); color: var(--muted); cursor: pointer; transition: .2s ease; }
+  .drop:hover, .drop.drag { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); transform: translateY(-1px); }
+  .drop .drop-icon { color: var(--accent); font-size: 20px; line-height: 1; }
+  .drop strong { color: var(--text); font-size: 13px; margin-top: 9px; }
+  .drop span:not(.drop-icon) { font-size: 11px; margin-top: 4px; }
+  .drop small { font-size: 9px; margin-top: 11px; letter-spacing: .08em; text-transform: uppercase; }
   input[type=file] { display: none; }
-  section.card, section.block { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-top: 12px; }
+  section.card, section.block { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; margin-top: 14px; }
   .card-head { display: flex; gap: 10px; align-items: flex-start; }
-  .card-head h2 { font-size: 15px; margin: 0; flex: 1; word-break: break-all; }
-  .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; margin-top: 5px; }
-  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; color: #fff; white-space: nowrap; }
+  .card-head h2 { font-size: 15px; font-weight: 600; margin: 0; flex: 1; word-break: break-all; }
+  .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; margin-top: 4px; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: #fff; white-space: nowrap; }
   .badge.geoid, .badge.vgrid { background: var(--badge-geoid); }
   .badge.ortho { background: var(--badge-ortho); }
   .badge.dem { background: var(--badge-dem); }
   .badge.datumgrid { background: var(--badge-grid); }
   .badge.other { background: var(--badge-other); }
-  .conf { color: var(--muted); font-size: 12px; margin-left: 6px; }
-  .why { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
-  .known { margin-top: 10px; border-left: 3px solid var(--badge-geoid); background: var(--panel2); padding: 8px 10px; border-radius: 0 8px 8px 0; }
-  .known b { display: block; }
-  .known .fam { color: var(--muted); font-size: 12px; }
-  ul.findings { list-style: none; padding: 0; margin: 10px 0 0; }
-  ul.findings li { padding: 4px 0 4px 22px; position: relative; border-top: 1px solid var(--border); }
-  ul.findings li::before { position: absolute; left: 2px; top: 4px; font-weight: 700; }
+  .conf { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .why { color: var(--muted); font-size: 11px; line-height: 1.55; margin: 8px 0 0; }
+  .known { margin-top: 12px; border-left: 3px solid var(--badge-geoid); background: var(--panel2); padding: 9px 12px; border-radius: 0 8px 8px 0; }
+  .known b { display: block; font-weight: 600; }
+  .known .fam { color: var(--muted); font-size: 9px; font-weight: 700; letter-spacing: .18em; text-transform: uppercase; }
+  ul.findings { list-style: none; padding: 0; margin: 12px 0 0; }
+  ul.findings li { padding: 5px 0 5px 22px; position: relative; border-top: 1px solid var(--border); font-size: 12px; }
+  ul.findings li::before { position: absolute; left: 2px; top: 5px; font-weight: 700; }
   ul.findings li.info::before { content: "i"; color: var(--accent); left: 6px; }
   ul.findings li.ok::before { content: "✓"; color: var(--ok); }
   ul.findings li.warn::before { content: "!"; color: var(--warn); left: 6px; }
   ul.findings li.err::before { content: "✕"; color: var(--err); }
-  ul.known-notes { margin: 6px 0 0; padding-left: 18px; }
+  ul.known-notes { margin: 6px 0 0; padding-left: 18px; font-size: 12px; }
   details { margin-top: 8px; }
-  summary { cursor: pointer; color: var(--accent); }
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-top: 6px; }
-  th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  summary { cursor: pointer; color: var(--accent); font-size: 12px; font-weight: 550; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--border); vertical-align: top; }
   th { color: var(--muted); font-weight: 500; width: 38%; }
   td { word-break: break-word; font-variant-numeric: tabular-nums; }
-  td.mono, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
-  pre { white-space: pre-wrap; background: var(--panel2); padding: 8px; border-radius: 6px; margin: 6px 0 0; max-height: 280px; overflow: auto; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-  button, .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; text-decoration: none; }
-  button:hover, .btn:hover { border-color: var(--accent); }
+  td.mono, pre { font-family: var(--font-mono); font-size: 11.5px; }
+  pre { white-space: pre-wrap; background: var(--panel2); padding: 8px; border-radius: 8px; margin: 6px 0 0; max-height: 280px; overflow: auto; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 12px; }
+  .row button, .btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 7px 11px; font-size: 12px; line-height: 1.2; cursor: pointer; text-decoration: none; transition: .2s ease; }
+  .row button:hover, .btn:hover { border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  label.small { color: var(--muted); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
-  input[type=range] { width: 110px; }
-  input[type=text] { flex: 1; min-width: 200px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font: 12px ui-monospace, monospace; }
-  .status { color: var(--muted); font-size: 12px; }
-  .block h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+  label.small { color: var(--muted); font-size: 11px; display: inline-flex; gap: 6px; align-items: center; }
+  input[type=range] { width: 110px; accent-color: var(--accent); }
+  input[type=checkbox] { accent-color: var(--accent); }
+  input[type=text] { flex: 1; min-width: 200px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; font: 11.5px var(--font-mono); }
+  .status { color: var(--muted); font-size: 11px; display: block; margin-top: 6px; }
+  .block h3 { color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: .22em; text-transform: uppercase; margin: 0 0 10px; }
+  .block p, .block li { font-size: 12px; line-height: 1.6; }
   .muted { color: var(--muted); }
   .cmp-ok { color: var(--ok); } .cmp-bad { color: var(--err); } .cmp-warn { color: var(--warn); }
-  .legend { position: absolute; right: 10px; bottom: 26px; z-index: 500; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; max-width: 260px; }
-  .legend[hidden] { display: none; }
+  .legend { position: absolute; right: 10px; bottom: 26px; z-index: 500; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 7px 9px; font-size: 11px; max-width: 260px; box-shadow: 0 8px 24px rgba(0,0,0,.25); }
   .legend .bar { height: 10px; border-radius: 3px; margin: 4px 0 2px; }
   .legend .scale { display: flex; justify-content: space-between; color: var(--muted); }
-  .leaflet-container { font: inherit; }
+  .leaflet-container { font-family: var(--font-ui); }
+  .leaflet-control-attribution { font-size: 9px !important; }
+  .leaflet-tooltip { color: #1b2430; border: 0; border-radius: 6px; box-shadow: 0 5px 20px rgba(0,0,0,.25); font-size: 11px; }
   .empty { color: var(--muted); padding: 10px 2px; }
 
   /* Fußleisten */
-  .app-footer { background: var(--panel); border-top: 1px solid var(--border); font-size: 11px; }
+  .app-footer { flex: none; background: var(--panel); border-top: 1px solid var(--border); font-size: 11px; }
   .related-apps, .footer-meta, .footer-links { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 7px; }
   .related-apps { padding: 8px 16px; }
   .related-apps strong { color: var(--muted); font-weight: 550; margin-right: 2px; }
@@ -123,30 +178,75 @@
   }
   .app-footer a:hover, .app-footer button:hover { border-color: var(--accent); color: var(--text); }
 
-  /* Dialoge */
-  dialog { padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
-  dialog::backdrop { background: rgba(0, 0, 0, .55); }
-  .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
-  .dlg-head h2 { margin: 0; font-size: 17px; }
-  .dlg-body { padding: 14px 18px 18px; }
-  .dlg-body .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-  .dlg-body .addr { color: var(--accent); font-weight: 600; }
+  /* Dialoge (wie Über/Copyright des Cleaners) */
+  dialog.about-panel { padding: 0; color: var(--text); width: min(760px, calc(100vw - 48px)); max-height: calc(100vh - 48px); overflow: auto; border: 1px solid var(--border); border-radius: 16px; background: var(--panel); box-shadow: 0 30px 90px rgba(0, 0, 0, .45); }
+  dialog.about-panel::backdrop { background: rgba(0, 0, 0, .6); backdrop-filter: blur(8px); }
+  .about-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding: 25px 28px 20px; border-bottom: 1px solid var(--border); }
+  .about-header form { margin: 0; }
+  .about-header .eyebrow { margin-bottom: 8px; }
+  .about-header h2 { margin: 0; font-size: 25px; font-weight: 600; }
+  .about-header p:last-child { margin: 7px 0 0; color: var(--muted); font-size: 11px; }
+  .about-close-icon { flex: 0 0 auto; width: 35px; height: 35px; padding: 0; font-size: 21px; line-height: 1; }
+  .about-body { padding: 22px 28px 15px; }
+  .about-body > p, .about-body li { margin: 0 0 15px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+  .about-body li { margin-bottom: 8px; }
+  .about-body li b, .about-body p b { color: var(--text); font-weight: 600; }
+  .about-body ol, .about-body ul { padding-left: 20px; margin: 0 0 15px; }
+  .about-body table { font-size: 12px; }
+  .about-inline-link { color: var(--accent); font-weight: 650; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  .about-inline-link:hover { color: var(--text); }
+  .about-links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 22px; }
+  .about-links a { overflow: hidden; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--accent); background: var(--accent-soft); font-size: 11px; text-align: center; text-decoration: none; text-overflow: ellipsis; white-space: nowrap; }
+  .about-links a:hover { border-color: var(--accent); }
+  .about-footer { display: flex; justify-content: flex-end; padding: 12px 28px 22px; }
+  .about-footer .button { min-width: 90px; color: var(--accent); border-color: color-mix(in srgb, var(--accent) 42%, transparent); }
+  .support-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0; }
+  .support-address { color: var(--accent) !important; font-weight: 600; }
 </style>
 </head>
 <body>
-<header class="top">
-  <h1><span data-i18n="app.title">GeoTIFF-Inspektor</span><span class="ver" id="ver"></span></h1>
-  <p data-i18n="app.tagline"></p>
-  <div class="top-actions">
-    <button id="btn-theme" class="icon-btn" type="button"></button>
-    <button id="btn-lang" class="icon-btn" type="button"></button>
-  </div>
+<header class="topbar">
+  <a class="brand" href="./" data-i18n-aria-label="brand.homeAria">
+    <span class="brand-mark" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M4 4h16v16H4z"/><path d="M4 9.33h16M4 14.67h16M9.33 4v16M14.67 4v16" stroke-width="1.1" opacity=".55"/><circle cx="9.33" cy="9.33" r="1.9" fill="currentColor" stroke="none"/></svg>
+    </span>
+    <span class="brand-copy">
+      <span class="brand-title-line">
+        <strong data-i18n="brand.title">GeoTIFF</strong>
+        <span id="ver" class="brand-version"></span>
+      </span>
+      <small data-i18n="brand.sub"></small>
+    </span>
+  </a>
+  <div class="privacy-chip"><span></span><span data-i18n="header.privacy"></span></div>
+  <nav class="top-actions" data-i18n-aria-label="header.actionsAria">
+    <details id="about-menu" class="header-menu">
+      <summary class="button button-quiet" data-i18n="header.aboutMenu"></summary>
+      <div class="header-menu-panel">
+        <button id="open-about" type="button" data-i18n="header.about"></button>
+        <button id="open-copyright" type="button" data-i18n="header.copyright"></button>
+      </div>
+    </details>
+    <button id="btn-help" class="button button-quiet icon-button" type="button" data-i18n-aria-label="header.help" data-i18n-title="header.help">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+    </button>
+    <button id="btn-theme" class="button button-quiet theme-button" type="button"></button>
+    <button id="btn-lang" class="button button-quiet language-button" type="button"></button>
+  </nav>
 </header>
 <div class="layout">
   <div class="left">
+    <section class="intro">
+      <p class="eyebrow" data-i18n="input.eyebrow"></p>
+      <h1 data-i18n="input.headline"></h1>
+      <p data-i18n="app.tagline"></p>
+    </section>
     <label class="drop" id="drop">
-      <strong data-i18n="drop.title"></strong> <span data-i18n="drop.or"></span><br />
+      <span class="drop-icon" aria-hidden="true">↥</span>
+      <strong data-i18n="drop.title"></strong>
+      <span data-i18n="drop.or"></span>
       <span data-i18n="drop.hint"></span>
+      <small data-i18n="drop.local"></small>
       <input type="file" id="file" accept=".tif,.tiff,image/tiff" multiple />
     </label>
     <div id="cards"></div>
@@ -177,8 +277,8 @@
   <nav class="related-apps" data-i18n-aria-label="footer.apps">
     <strong data-i18n="footer.apps"></strong>
     <a href="https://geodata-inspector-cleaner.netlify.app/" target="_blank" rel="noopener noreferrer">Geodata Inspector &amp; Cleaner <span aria-hidden="true">↗</span></a>
-    <a href="https://measuremap-viewer-editor-emlid.netlify.app/" target="_blank" rel="noopener noreferrer">MeasureMap <span aria-hidden="true">↗</span></a>
-    <a href="https://geoid-forge.netlify.app/" target="_blank" rel="noopener noreferrer">Geoid Forge <span aria-hidden="true">↗</span></a>
+    <a href="https://measuremap-viewer-editor.netlify.app/" target="_blank" rel="noopener noreferrer">MeasureMap <span aria-hidden="true">↗</span></a>
+    <a href="https://geoid-tiff2pgm-converter.netlify.app/" target="_blank" rel="noopener noreferrer">Geoid-TIFF 2 PGM Converter <span aria-hidden="true">↗</span></a>
     <a href="https://dxf-coordinate-forge.netlify.app/" target="_blank" rel="noopener noreferrer">DXF Coordinate Forge <span aria-hidden="true">↗</span></a>
     <a href="https://www.pointcloud-manager.com" target="_blank" rel="noopener noreferrer">PointCloud Manager <span aria-hidden="true">↗</span></a>
     <a href="https://mradeck.github.io/gps-utm-coordinate-converter/" target="_blank" rel="noopener noreferrer">GPS / UTM Converter <span aria-hidden="true">↗</span></a>
@@ -198,24 +298,89 @@
   </div>
 </footer>
 
-<dialog id="support-dialog" aria-labelledby="support-title">
-  <div class="dlg-head"><h2 id="support-title" data-i18n="footer.support"></h2><form method="dialog"><button type="submit" data-i18n-aria-label="dialog.close">×</button></form></div>
-  <div class="dlg-body">
-    <p data-i18n="support.intro"></p>
-    <div class="actions">
-      <a id="support-help" class="btn" href="https://github.com/mradeck/geotiff-inspector#readme" target="_blank" rel="noopener noreferrer" data-i18n="support.help"></a>
-      <a id="support-bugreport" class="btn" href="mailto:michael.radeck@email.de" data-i18n="support.bugreport"></a>
-      <a id="support-contact" class="btn" href="mailto:michael.radeck@email.de" data-i18n="support.contact"></a>
+<dialog id="support-dialog" class="about-panel" aria-labelledby="support-title">
+  <header class="about-header">
+    <div>
+      <p class="eyebrow" data-i18n="app.title"></p>
+      <h2 id="support-title" data-i18n="footer.support"></h2>
     </div>
-    <p class="addr">michael.radeck@email.de</p>
+    <form method="dialog"><button class="button about-close-icon" type="submit" data-i18n-aria-label="dialog.close">×</button></form>
+  </header>
+  <div class="about-body">
+    <p data-i18n="support.intro"></p>
+    <div class="support-actions">
+      <button id="support-help" class="button" type="button" data-i18n="support.help"></button>
+      <a id="support-bugreport" class="button" href="mailto:michael.radeck@email.de" data-i18n="support.bugreport"></a>
+      <a id="support-contact" class="button" href="mailto:michael.radeck@email.de" data-i18n="support.contact"></a>
+    </div>
+    <p class="support-address">michael.radeck@email.de</p>
     <p data-i18n="support.bugHint"></p>
-    <p class="muted" data-i18n="support.privacy"></p>
+    <p data-i18n="support.privacy"></p>
   </div>
 </dialog>
 
-<dialog id="licenses-dialog" aria-labelledby="licenses-title">
-  <div class="dlg-head"><h2 id="licenses-title" data-i18n="footer.licenses"></h2><form method="dialog"><button type="submit" data-i18n-aria-label="dialog.close">×</button></form></div>
-  <div class="dlg-body">
+<dialog id="help-dialog" class="about-panel" aria-labelledby="help-title">
+  <header class="about-header">
+    <div>
+      <p class="eyebrow" data-i18n="help.eyebrow"></p>
+      <h2 id="help-title" data-i18n="help.title"></h2>
+      <p data-i18n="help.subtitle"></p>
+    </div>
+    <form method="dialog"><button class="button about-close-icon" type="submit" data-i18n-aria-label="dialog.close">×</button></form>
+  </header>
+  <div class="about-body">
+    <ol>
+      <li data-i18n-html="help.s1"></li>
+      <li data-i18n-html="help.s2"></li>
+      <li data-i18n-html="help.s3"></li>
+      <li data-i18n-html="help.s4"></li>
+      <li data-i18n-html="help.s5"></li>
+      <li data-i18n-html="help.s6"></li>
+    </ol>
+    <p data-i18n-html="help.limits"></p>
+    <p><a class="about-inline-link" href="https://github.com/mradeck/geotiff-inspector#readme" target="_blank" rel="noopener noreferrer" data-i18n="help.readme"></a></p>
+  </div>
+  <footer class="about-footer"><form method="dialog"><button class="button" type="submit" data-i18n="dialog.ok"></button></form></footer>
+</dialog>
+
+<dialog id="about-dialog" class="about-panel" aria-labelledby="about-title">
+  <header class="about-header">
+    <div>
+      <p class="eyebrow" data-i18n="about.eyebrow"></p>
+      <h2 id="about-title" data-i18n="about.title"></h2>
+      <p data-i18n="about.subtitle"></p>
+    </div>
+    <form method="dialog"><button class="button about-close-icon" type="submit" data-i18n-aria-label="about.closeAria">×</button></form>
+  </header>
+  <div class="about-body">
+    <p data-i18n="about.p1"></p>
+    <p data-i18n="about.p2"></p>
+    <p>
+      <span data-i18n="about.p3"></span>
+      <span data-i18n="about.pointcloudDemoIntro"></span>
+      <a class="about-inline-link" href="https://stable-v53--pointcloud-manager.netlify.app/" target="_blank" rel="noopener" data-i18n="about.pointcloudDemoLink"></a>.
+    </p>
+    <p data-i18n="about.p4"></p>
+    <nav class="about-links" data-i18n-aria-label="about.linksAria">
+      <a href="https://multikopterschule.de/" target="_blank" rel="noopener">multikopterschule.de</a>
+      <a href="https://www.dronemedia-munich.de/" target="_blank" rel="noopener">dronemedia-munich.de</a>
+      <a href="https://www.xing.com/profile/Michael_Radeck" target="_blank" rel="noopener" data-i18n="about.link.xing"></a>
+      <a href="https://www.crew-united.com/de/Michael-Radeck_71557.html" target="_blank" rel="noopener">Crew United</a>
+    </nav>
+  </div>
+  <footer class="about-footer"><form method="dialog"><button class="button" type="submit" data-i18n="about.close"></button></form></footer>
+</dialog>
+
+<dialog id="licenses-dialog" class="about-panel" aria-labelledby="licenses-title">
+  <header class="about-header">
+    <div>
+      <p class="eyebrow" data-i18n="copyright.eyebrow"></p>
+      <h2 id="licenses-title" data-i18n="copyright.title"></h2>
+      <p data-i18n="copyright.subtitle"></p>
+    </div>
+    <form method="dialog"><button class="button about-close-icon" type="submit" data-i18n-aria-label="dialog.close">×</button></form>
+  </header>
+  <div class="about-body">
     <p data-i18n="lic.intro"></p>
     <table>
       <tr><th data-i18n="lic.component"></th><td><b data-i18n="lic.license"></b> · <span data-i18n="lic.use"></span></td></tr>
@@ -223,10 +388,12 @@
       <tr><th>geotiff.js 3.0.5</th><td>MIT · <span data-i18n="lic.geotiff"></span></td></tr>
       <tr><th>proj4js 2.20.8</th><td>MIT · <span data-i18n="lic.proj4"></span></td></tr>
       <tr><th>Leaflet 1.9.4</th><td>BSD-2-Clause · <span data-i18n="lic.leaflet"></span></td></tr>
+      <tr><th>Inter Variable (@fontsource-variable/inter 5.3.0)</th><td>SIL OFL 1.1 · © The Inter Project Authors · <span data-i18n="lic.inter"></span></td></tr>
       <tr><th>OpenStreetMap</th><td>ODbL · <span data-i18n="lic.osmHolder"></span> · <span data-i18n="lic.osm"></span></td></tr>
       <tr><th data-i18n="lic.crs"></th><td>MIT · <span data-i18n="lic.crsSrc"></span></td></tr>
     </table>
   </div>
+  <footer class="about-footer"><form method="dialog"><button class="button" type="submit" data-i18n="dialog.ok"></button></form></footer>
 </dialog>
 
 <script src="vendor/geotiff.js"></script>
@@ -237,7 +404,7 @@
 <script src="inspectorCore.js"></script>
 <script>
 "use strict";
-const VERSION = "26.4.1";
+const VERSION = "26.6.1";
 const C = window.GeoTiffInspector;
 const { t } = window.I18N;
 const MAX_FULL_READ_CELLS = 25e6;
@@ -281,6 +448,7 @@ function applyStaticTexts() {
   document.querySelectorAll("[data-i18n]").forEach((n) => { n.textContent = t(n.dataset.i18n); });
   document.querySelectorAll("[data-i18n-html]").forEach((n) => { n.innerHTML = t(n.dataset.i18nHtml); });
   document.querySelectorAll("[data-i18n-aria-label]").forEach((n) => n.setAttribute("aria-label", t(n.dataset.i18nAriaLabel)));
+  document.querySelectorAll("[data-i18n-title]").forEach((n) => n.setAttribute("title", t(n.dataset.i18nTitle)));
   const btn = document.getElementById("btn-lang");
   btn.innerHTML = `${lang === "de" ? FLAG_DE : FLAG_GB}<span>${lang.toUpperCase()}</span>`;
   btn.title = t("lang.toggle"); btn.setAttribute("aria-label", t("lang.toggle"));
@@ -304,8 +472,17 @@ I18N.onLanguageChange(() => {
 
 document.getElementById("ver").textContent = `v${VERSION}`;
 document.getElementById("footer-year").textContent = String(new Date().getFullYear());
-document.getElementById("footer-support").addEventListener("click", () => document.getElementById("support-dialog").showModal());
-document.getElementById("footer-licenses").addEventListener("click", () => document.getElementById("licenses-dialog").showModal());
+const openDialog = (id) => document.getElementById(id).showModal();
+document.getElementById("footer-support").addEventListener("click", () => openDialog("support-dialog"));
+document.getElementById("footer-licenses").addEventListener("click", () => openDialog("licenses-dialog"));
+document.getElementById("btn-help").addEventListener("click", () => openDialog("help-dialog"));
+document.getElementById("support-help").addEventListener("click", () => { document.getElementById("support-dialog").close(); openDialog("help-dialog"); });
+// Über-Menü: Über mich / Copyright; schließt bei Auswahl, Klick daneben und Escape.
+const aboutMenu = document.getElementById("about-menu");
+document.getElementById("open-about").addEventListener("click", () => { aboutMenu.open = false; openDialog("about-dialog"); });
+document.getElementById("open-copyright").addEventListener("click", () => { aboutMenu.open = false; openDialog("licenses-dialog"); });
+document.addEventListener("click", (e) => { if (aboutMenu.open && !aboutMenu.contains(e.target)) aboutMenu.open = false; });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && aboutMenu.open) { aboutMenu.open = false; aboutMenu.querySelector("summary").focus(); } });
 
 // ---------------------------------------------------------------------------
 // Karte

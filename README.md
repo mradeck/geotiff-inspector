@@ -1,6 +1,6 @@
 # GeoTIFF-Inspektor
 
-**Version 26.4.1** — Online: https://mradeck.github.io/geotiff-inspector/
+**Version 26.6.1** — Online: https://mradeck.github.io/geotiff-inspector/
 
 GeoTIFF-Inspektor ist eine Single-Page-App. Sie liest die Metadaten von GeoTIFF-Dateien aus und ordnet die Dateien fachlich ein: Geoidgitter, Höhensystem-Differenzgitter, Lage-Transformationsgitter, Gelände-/Oberflächenmodell, Orthofoto oder sonstiges Raster. Außerdem zeigt sie die Dateien lagerichtig auf einer Karte. Gerechnet wird ausschließlich lokal im Browser, es wird keine Datei hochgeladen. Online geladen werden nur die OpenStreetMap-Kacheln der Grundkarte.
 
@@ -33,6 +33,8 @@ Bei mehreren Dateien prüft die App jedes Paar mit gleichem CRS und gleicher Zel
 
 ## Oberfläche
 
+- **Kopfleiste:** Markenzeichen mit Titel und Version links, rechts in fester Reihenfolge „Über“ (Menü mit „Über mich“ und „Copyright“), Hilfe „(i)“ mit einer Kurzanleitung, der Interface-Knopf und der Sprachknopf. Das Erscheinungsbild (Schrift, Knöpfe, Kacheln, Dialoge) folgt dem Geodata Inspector & Cleaner.
+- **Schrift:** Inter (Variable) liegt in `vendor/fonts/` und wird selbst ausgeliefert. Es werden keine externen Schriftdienste wie Google Fonts angefragt.
 - **Sprache DE/EN:** Der Knopf oben rechts mit Fahne wechselt die Sprache. Alle Texte wechseln mit, auch die Hinweise und die Einordnung bereits geladener Dateien. Gespeichert wird die Wahl im Browser (`gti.lang`), beim ersten Aufruf gilt die Browsersprache.
 - **Interface automatisch / hell / dunkel:** Der Knopf daneben schaltet der Reihe nach um. „Automatisch“ folgt der Systemeinstellung. Die Wahl wird ebenfalls im Browser gespeichert (`gti.theme`).
 - **Fußleisten:** Die erste Leiste enthält „Weitere Apps“, die zweite Autor, Version, OpenStreetMap, Quellcode, Hilfe / Bugreport / Kontakt (per E-Mail, mit Version im Betreff), Lizenzen / Copyright, Impressum und Ko-fi.
@@ -62,7 +64,7 @@ Fehlt ein Code im Katalog, kann in der Kachel eine proj4-Definition eingetragen 
 | `inspectorCore.js` | Kern ohne DOM: Einlesen, Geometrie, CRS, Einordnung, Erkennung, Hinweise, Gittervergleich |
 | `crsCatalog.js` | EPSG-Code → [Bezeichnung, proj4] |
 | `smoke-test.cjs` | Test des Kerns mit echten Dateien: `node smoke-test.cjs a.tif b.tif …` (Exit-Code 1, wenn sich Gitter auf gemeinsamem Knotengitter in den Werten unterscheiden) |
-| `vendor/` | geotiff.js 3.0.5, proj4 2.20.8, Leaflet 1.9.4 |
+| `vendor/` | geotiff.js 3.0.5, proj4 2.20.8, Leaflet 1.9.4, Schrift Inter (`vendor/fonts/`, aus `@fontsource-variable/inter` 5.3.0) |
 
 ## Lizenzen
 
@@ -70,5 +72,6 @@ Fehlt ein Code im Katalog, kann in der Kachel eine proj4-Definition eingetragen 
 - geotiff.js: MIT
 - proj4js: MIT
 - Leaflet: BSD-2-Clause (`vendor/LICENSE-leaflet.txt`)
+- Inter (Schrift): SIL Open Font License 1.1, © The Inter Project Authors (`vendor/fonts/OFL.txt`)
 - Grundkarte: © OpenStreetMap-Mitwirkende (ODbL)
 - GCG2016: Bundesamt für Kartographie und Geodäsie (BKG). Die Gitterdateien sind nicht Teil dieses Repos, die App liest nur deren Metadaten und Werte lokal.
