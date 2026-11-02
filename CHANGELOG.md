@@ -2,6 +2,10 @@
 
 Versionsschema `Jahr.Push.Iteration` (zweistellige Jahreszahl · laufende GitHub-Pushes im Jahr · lokale Iteration zwischen zwei Pushes).
 
+## 26.6.3 — 2026-11-02
+
+- Favicon: Variante mit kräftigerem Raster (bei 16 px besser lesbar).
+
 ## 26.6.2 — 2026-11-02
 
 - Favicon aus dem Markenzeichen der Kopfleiste (Raster mit Punkt, Blau auf Weiß wie im hellen Interface): `favicon.svg`, dazu `favicon-32.png` und `apple-touch-icon.png` (180 × 180), in `index.html` verlinkt.
