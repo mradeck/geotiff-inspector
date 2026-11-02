@@ -55,6 +55,7 @@ Fehlt ein Code im Katalog, kann in der Kachel eine proj4-Definition eingetragen 
 
 ## Lizenzen
 
+- GeoTIFF-Inspektor selbst: MIT (`LICENSE`)
 - geotiff.js: MIT
 - proj4js: MIT
 - Leaflet: BSD-2-Clause (`vendor/LICENSE-leaflet.txt`)
