@@ -2,6 +2,10 @@
 
 Versionsschema `Jahr.Push.Iteration` (zweistellige Jahreszahl · laufende GitHub-Pushes im Jahr · lokale Iteration zwischen zwei Pushes).
 
+## 26.7.1 — 2026-11-02
+
+- „Über mich“ beschreibt jetzt den GeoTIFF Inspector statt des Geodata Inspector & Cleaner (DE/EN).
+
 ## 26.6.3 — 2026-11-02
 
 - Favicon: Variante mit kräftigerem Raster (bei 16 px besser lesbar).
