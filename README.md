@@ -1,6 +1,6 @@
 # GeoTIFF-Inspektor
 
-**Version v26.11.1.0**
+**Version 26.4.1** — Online: https://mradeck.github.io/geotiff-inspector/
 
 GeoTIFF-Inspektor ist eine Single-Page-App. Sie liest die Metadaten von GeoTIFF-Dateien aus und ordnet die Dateien fachlich ein: Geoidgitter, Höhensystem-Differenzgitter, Lage-Transformationsgitter, Gelände-/Oberflächenmodell, Orthofoto oder sonstiges Raster. Außerdem zeigt sie die Dateien lagerichtig auf einer Karte. Gerechnet wird ausschließlich lokal im Browser, es wird keine Datei hochgeladen. Online geladen werden nur die OpenStreetMap-Kacheln der Grundkarte.
 
@@ -31,6 +31,12 @@ Das Bild wird pixelweise aus dem Quell-CRS nach Web-Mercator umgerechnet. Deshal
 
 Bei mehreren Dateien prüft die App jedes Paar mit gleichem CRS und gleicher Zellgröße auf ein gemeinsames Knotengitter. Die Registrierung beider Dateien wird dabei berücksichtigt. Einbandige Gitter vergleicht sie im Überlappungsbereich Zelle für Zelle, sodass etwa zwei verschieden große Fassungen desselben Geoids als bitgleich erkannt werden.
 
+## Oberfläche
+
+- **Sprache DE/EN:** Der Knopf oben rechts mit Fahne wechselt die Sprache. Alle Texte wechseln mit, auch die Hinweise und die Einordnung bereits geladener Dateien. Gespeichert wird die Wahl im Browser (`gti.lang`), beim ersten Aufruf gilt die Browsersprache.
+- **Interface automatisch / hell / dunkel:** Der Knopf daneben schaltet der Reihe nach um. „Automatisch“ folgt der Systemeinstellung. Die Wahl wird ebenfalls im Browser gespeichert (`gti.theme`).
+- **Fußleisten:** Die erste Leiste enthält „Weitere Apps“, die zweite Autor, Version, OpenStreetMap, Quellcode, Hilfe / Bugreport / Kontakt (per E-Mail, mit Version im Betreff), Lizenzen / Copyright, Impressum und Ko-fi.
+
 ## Koordinatenreferenzsysteme
 
 Der Katalog `crsCatalog.js` enthält 679 EPSG-Definitionen. Er ist aus dem CRS-Katalog von pointcloud-manager erzeugt und deckt Europa, UTM weltweit, US State Plane, GDA/MGA, NZTM, JGD2011, CGCS2000, SIRGAS und einige ältere Landesdatums ab. Dazu kommen geografische Systeme wie EPSG:4326, 4258, 4937, 4979 und 3857.
@@ -43,11 +49,16 @@ Fehlt ein Code im Katalog, kann in der Kachel eine proj4-Definition eingetragen 
 - Ausgewertet wird nur der erste Tiepoint. Raster, die über mehrere Tiepoints (GCPs) georeferenziert sind, werden nur näherungsweise platziert.
 - Die Einordnung ist eine begründete Schätzung und keine Normprüfung.
 
+## Versionsschema
+
+`Jahr.Push.Iteration`: zweistellige Jahreszahl, laufende Nummer der GitHub-Pushes im Jahr, lokale Iteration zwischen zwei Pushes. Die Versionsgeschichte steht in [`CHANGELOG.md`](./CHANGELOG.md).
+
 ## Dateien
 
 | Datei | Inhalt |
 | --- | --- |
 | `index.html` | Oberfläche, Karte, Vergleich |
+| `i18n.js` | Alle Texte auf Deutsch und Englisch |
 | `inspectorCore.js` | Kern ohne DOM: Einlesen, Geometrie, CRS, Einordnung, Erkennung, Hinweise, Gittervergleich |
 | `crsCatalog.js` | EPSG-Code → [Bezeichnung, proj4] |
 | `smoke-test.cjs` | Test des Kerns mit echten Dateien: `node smoke-test.cjs a.tif b.tif …` (Exit-Code 1, wenn sich Gitter auf gemeinsamem Knotengitter in den Werten unterscheiden) |

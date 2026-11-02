@@ -7,7 +7,9 @@
 const fs = require("fs");
 const path = require("path");
 const GeoTIFF = require("./vendor/geotiff.js");
+const I18N = require("./i18n.js");
 const C = require("./inspectorCore.js");
+if (process.env.LANG_UI) I18N.setLanguage(process.env.LANG_UI);
 global.window = global;
 require("./crsCatalog.js");
 (async () => {
@@ -24,9 +26,9 @@ require("./crsCatalog.js");
     const cls = C.classify(info, crs, geom, stats);
     const known = C.recognizeKnown(info, crs, geom);
     const findings = C.buildFindings(info, crs, geom, cls, stats);
-    console.log("\n#", info.fileName, "→", cls.label, `(${cls.confidence})`, "| CRS", crs.code, crs.label);
-    console.log("  Gründe:", cls.reasons.join(" | "));
-    console.log("  Erkannt:", known ? known.title : "–");
+    console.log("\n#", info.fileName, "→", C.kindLabel(cls.kind), `(${cls.confidence})`, "| CRS", crs.code, C.crsLabel(crs));
+    console.log("  Gründe:", cls.reasons.map(C.reasonText).join(" | "));
+    console.log("  Erkannt:", known ? C.knownText(known).title : "–");
     console.log("  Stats:", stats && { min: stats.min, max: stats.max, nan: stats.nan, nd: stats.nodata });
     for (const x of findings) console.log("  [" + x.level + "]", x.text);
     items.push({ info, geom, crs, vals });

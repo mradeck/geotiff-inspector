@@ -5,33 +5,57 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>GeoTIFF-Inspektor</title>
 <meta name="description" content="GeoTIFF-Metadaten lokal im Browser auslesen, Geoidgitter von Orthofotos und Höhenmodellen unterscheiden und die Dateien lagerichtig auf einer Karte zeigen." />
+<script>
+  // Theme und Sprache vor dem ersten Zeichnen setzen (kein Aufblitzen).
+  (function () {
+    try {
+      var th = localStorage.getItem("gti.theme");
+      if (th === "light" || th === "dark") document.documentElement.setAttribute("data-theme", th);
+      var lg = localStorage.getItem("gti.lang");
+      document.documentElement.lang = lg === "en" || lg === "de" ? lg : (/^de\b/i.test(navigator.language || "") ? "de" : "en");
+    } catch (e) { /* ohne Speicher: Systemvorgabe */ }
+  })();
+</script>
 <link rel="stylesheet" href="vendor/leaflet.css" />
 <style>
+  /* Neutrales Farbschema. Dunkel ist die Grundlage, hell per data-theme oder Systemeinstellung. */
   :root {
+    color-scheme: dark;
     --bg: #14171c; --panel: #1d2229; --panel2: #232a33; --border: #333c48;
     --text: #e6ebf1; --muted: #93a0af; --accent: #4da3ff; --ok: #46c07a; --warn: #e0a13c; --err: #e05c5c;
-    --badge-geoid: #7b61ff; --badge-ortho: #2f9e68; --badge-dem: #c07a2a; --badge-grid: #2a8fc0; --badge-other: #6b7684;
+    --badge-geoid: #7b61ff; --badge-ortho: #2f9e68; --badge-dem: #b36d1f; --badge-grid: #2a8fc0; --badge-other: #6b7684;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #f3f5f8; --panel: #ffffff; --panel2: #eef1f5; --border: #d4dae2;
+    --text: #1b2430; --muted: #5d6a79; --accent: #1f6fd1; --ok: #23824f; --warn: #a86400; --err: #c0392b;
   }
   @media (prefers-color-scheme: light) {
-    :root {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
       --bg: #f3f5f8; --panel: #ffffff; --panel2: #eef1f5; --border: #d4dae2;
       --text: #1b2430; --muted: #5d6a79; --accent: #1f6fd1; --ok: #23824f; --warn: #a86400; --err: #c0392b;
     }
   }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  header { padding: 14px 16px 10px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: baseline; flex-wrap: wrap; }
-  header h1 { margin: 0; font-size: 20px; }
-  header h1 .ver { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
-  header p { margin: 0; color: var(--muted); flex: 1; min-width: 240px; }
-  .layout { display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 1.1fr); gap: 0; height: calc(100% - 62px); }
-  .left { overflow-y: auto; padding: 12px 16px 48px; }
-  .right { position: relative; border-left: 1px solid var(--border); }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; display: flex; flex-direction: column; }
+  header.top { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header.top h1 { margin: 0; font-size: 20px; white-space: nowrap; }
+  header.top h1 .ver { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 8px; }
+  header.top p { margin: 0; color: var(--muted); flex: 1; min-width: 240px; font-size: 13px; }
+  .top-actions { display: flex; gap: 6px; }
+  .icon-btn { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; }
+  .icon-btn svg { display: block; }
+  .flag { width: 21px; height: 14px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+  .layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(360px, 1fr) minmax(360px, 1.1fr); }
+  .left { overflow-y: auto; padding: 12px 16px 32px; }
+  .right { position: relative; border-left: 1px solid var(--border); min-height: 320px; }
   #map { position: absolute; inset: 0; background: #aad3df; }
   @media (max-width: 900px) {
-    .layout { grid-template-columns: 1fr; height: auto; }
-    .right { height: 60vh; border-left: 0; border-top: 1px solid var(--border); order: -1; }
+    body { display: block; }
+    .layout { grid-template-columns: 1fr; }
+    .right { height: 60vh; border-left: 0; border-bottom: 1px solid var(--border); order: -1; }
     .left { overflow: visible; }
   }
   .drop { display: block; border: 2px dashed var(--border); border-radius: 10px; padding: 18px 14px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
@@ -70,78 +94,225 @@
   td.mono, pre { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
   pre { white-space: pre-wrap; background: var(--panel2); padding: 8px; border-radius: 6px; margin: 6px 0 0; max-height: 280px; overflow: auto; }
   .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
-  button { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; }
-  button:hover { border-color: var(--accent); }
+  button, .btn { background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; text-decoration: none; }
+  button:hover, .btn:hover { border-color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   label.small { color: var(--muted); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
   input[type=range] { width: 110px; }
   input[type=text] { flex: 1; min-width: 200px; background: var(--panel2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; font: 12px ui-monospace, monospace; }
   .status { color: var(--muted); font-size: 12px; }
   .block h3 { margin: 0 0 6px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
-  .block p, .block li { color: var(--text); }
-  .block .muted { color: var(--muted); }
+  .muted { color: var(--muted); }
   .cmp-ok { color: var(--ok); } .cmp-bad { color: var(--err); } .cmp-warn { color: var(--warn); }
-  .legend { position: absolute; right: 10px; bottom: 26px; z-index: 500; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; max-width: 260px; display: none; }
+  .legend { position: absolute; right: 10px; bottom: 26px; z-index: 500; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 8px; font-size: 12px; max-width: 260px; }
+  .legend[hidden] { display: none; }
   .legend .bar { height: 10px; border-radius: 3px; margin: 4px 0 2px; }
   .legend .scale { display: flex; justify-content: space-between; color: var(--muted); }
   .leaflet-container { font: inherit; }
   .empty { color: var(--muted); padding: 10px 2px; }
+
+  /* Fußleisten */
+  .app-footer { background: var(--panel); border-top: 1px solid var(--border); font-size: 11px; }
+  .related-apps, .footer-meta, .footer-links { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 7px; }
+  .related-apps { padding: 8px 16px; }
+  .related-apps strong { color: var(--muted); font-weight: 550; margin-right: 2px; }
+  .footer-meta { justify-content: space-between; padding: 7px 16px; border-top: 1px solid var(--border); color: var(--muted); }
+  .related-apps a, .footer-links a, .footer-links button {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 20px;
+    background: var(--panel2); color: var(--muted); font: inherit; font-size: 11px; line-height: 1.5; text-decoration: none; cursor: pointer;
+  }
+  .app-footer a:hover, .app-footer button:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Dialoge */
+  dialog { padding: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text); width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+  dialog::backdrop { background: rgba(0, 0, 0, .55); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+  .dlg-head h2 { margin: 0; font-size: 17px; }
+  .dlg-body { padding: 14px 18px 18px; }
+  .dlg-body .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .dlg-body .addr { color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
-<header>
-  <h1>GeoTIFF-Inspektor <span class="ver" id="ver"></span></h1>
-  <p>Metadaten auslesen, Geoidgitter von Orthofotos und Höhenmodellen unterscheiden, lagerichtig auf der Karte zeigen. Alles läuft lokal im Browser, keine Datei verlässt den Rechner.</p>
+<header class="top">
+  <h1><span data-i18n="app.title">GeoTIFF-Inspektor</span><span class="ver" id="ver"></span></h1>
+  <p data-i18n="app.tagline"></p>
+  <div class="top-actions">
+    <button id="btn-theme" class="icon-btn" type="button"></button>
+    <button id="btn-lang" class="icon-btn" type="button"></button>
+  </div>
 </header>
 <div class="layout">
   <div class="left">
     <label class="drop" id="drop">
-      <strong>GeoTIFF-Dateien hierher ziehen</strong> oder klicken zum Auswählen<br />
-      <span>.tif / .tiff, auch mehrere gleichzeitig — mehrere Gitter werden automatisch miteinander verglichen</span>
+      <strong data-i18n="drop.title"></strong> <span data-i18n="drop.or"></span><br />
+      <span data-i18n="drop.hint"></span>
       <input type="file" id="file" accept=".tif,.tiff,image/tiff" multiple />
     </label>
     <div id="cards"></div>
     <section class="block" id="compare" hidden>
-      <h3>Vergleich</h3>
+      <h3 data-i18n="cmp.title"></h3>
       <div id="compare-body"></div>
     </section>
     <section class="block">
-      <h3>Hintergrund</h3>
-      <p><b>Registrierung.</b> Ein GeoTIFF sagt mit <code>GTRasterTypeGeoKey</code>, worauf sich der Bezugspunkt bezieht: <i>PixelIsArea</i> (1) meint die äußere Ecke des ersten Pixels, <i>PixelIsPoint</i> (2) die Pixelmitte. Bei Geoidgittern sind die Werte Knotenwerte, also gilt jeder Wert in der Zellmitte. Wer die Angabe übergeht, liest das Gitter um eine halbe Zelle versetzt — beim GCG2016 rund 430 bis 460 m. Fehlt der Key, gilt nach TIFF-Vorgabe PixelIsArea.</p>
-      <p><b>Dateigröße.</b> Gleich große Raster können sich in der Dateigröße um den Faktor vier unterscheiden, nur weil eine Fassung mit Deflate und Gleitkomma-Prädiktor komprimiert ist. Die Werte bleiben dabei bitgleich.</p>
-      <p><b>GCG2016 (BKG).</b> Das German Combined Quasigeoid 2016 beschreibt den Übergang von ETRS89-Höhen (ellipsoidisch) nach DHHN2016 (Normalhöhen). Bekannt sind hier drei Fassungen derselben Werte:</p>
+      <h3 data-i18n="bg.title"></h3>
+      <p data-i18n-html="bg.reg"></p>
+      <p data-i18n-html="bg.size"></p>
+      <p data-i18n-html="bg.gcg"></p>
       <ul>
-        <li><code>de_bkg_GCG2016v2023.tif</code> — PROJ-CDN, 950 × 1052 Knoten, PixelIsPoint, Deflate, NoData 999999, PROJ-Metadaten (Ziel EPSG:7837), rund 1 MB.</li>
-        <li><code>GCG2016v2023.tif</code> — BKG, gleiches Gitter, PixelIsArea, unkomprimiert, NoData NaN, GMT-Herkunft, rund 4 MB.</li>
-        <li><code>GCG2016v2023_S.tif</code> — Ausschnitt Süddeutschland (518 × 408, ab Spalte 336 / Zeile 644); Saarland, große Teile von Rheinland-Pfalz und Ostsachsen fehlen.</li>
+        <li data-i18n-html="bg.gcg1"></li>
+        <li data-i18n-html="bg.gcg2"></li>
+        <li data-i18n-html="bg.gcg3"></li>
       </ul>
-      <p class="muted">Die Einordnung (Geoid, Datumsgitter, Höhenmodell, Orthofoto) ist eine begründete Schätzung aus Metadaten, Datentyp, Koordinatensystem, Wertebereich und Dateiname. Die Gründe stehen jeweils dabei. Kartengrundlage © OpenStreetMap-Mitwirkende.</p>
+      <p class="muted" data-i18n="bg.note"></p>
     </section>
   </div>
   <div class="right">
     <div id="map"></div>
-    <div class="legend" id="legend"></div>
+    <div class="legend" id="legend" hidden></div>
   </div>
 </div>
+
+<footer class="app-footer">
+  <nav class="related-apps" data-i18n-aria-label="footer.apps">
+    <strong data-i18n="footer.apps"></strong>
+    <a href="https://geodata-inspector-cleaner.netlify.app/" target="_blank" rel="noopener noreferrer">Geodata Inspector &amp; Cleaner <span aria-hidden="true">↗</span></a>
+    <a href="https://measuremap-viewer-editor-emlid.netlify.app/" target="_blank" rel="noopener noreferrer">MeasureMap <span aria-hidden="true">↗</span></a>
+    <a href="https://geoid-forge.netlify.app/" target="_blank" rel="noopener noreferrer">Geoid Forge <span aria-hidden="true">↗</span></a>
+    <a href="https://dxf-coordinate-forge.netlify.app/" target="_blank" rel="noopener noreferrer">DXF Coordinate Forge <span aria-hidden="true">↗</span></a>
+    <a href="https://www.pointcloud-manager.com" target="_blank" rel="noopener noreferrer">PointCloud Manager <span aria-hidden="true">↗</span></a>
+    <a href="https://mradeck.github.io/gps-utm-coordinate-converter/" target="_blank" rel="noopener noreferrer">GPS / UTM Converter <span aria-hidden="true">↗</span></a>
+    <a href="https://skycheck-de.netlify.app/" target="_blank" rel="noopener noreferrer">SkyCheck <span aria-hidden="true">↗</span></a>
+    <a href="https://www.michael-radeck.de" target="_blank" rel="noopener noreferrer">michael-radeck.de <span aria-hidden="true">↗</span></a>
+  </nav>
+  <div class="footer-meta">
+    <span><span data-i18n="footer.author"></span> · © <span id="footer-year"></span> · <span id="footer-version"></span></span>
+    <nav class="footer-links" data-i18n-aria-label="footer.linksAria">
+      <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap ↗</a>
+      <a href="https://github.com/mradeck/geotiff-inspector" target="_blank" rel="noopener noreferrer"><span data-i18n="footer.source"></span> ↗</a>
+      <button id="footer-support" type="button" data-i18n="footer.support"></button>
+      <button id="footer-licenses" type="button" data-i18n="footer.licenses"></button>
+      <a href="https://www.multikopterschule.de/Kontakt-Impressum/IMPRESSUM/" target="_blank" rel="noopener noreferrer"><span data-i18n="footer.imprint"></span> ↗</a>
+      <a href="https://ko-fi.com/mradeck/tip" target="_blank" rel="noopener noreferrer" data-i18n-aria-label="footer.kofiAria"><span aria-hidden="true">☕</span> Ko-fi</a>
+    </nav>
+  </div>
+</footer>
+
+<dialog id="support-dialog" aria-labelledby="support-title">
+  <div class="dlg-head"><h2 id="support-title" data-i18n="footer.support"></h2><form method="dialog"><button type="submit" data-i18n-aria-label="dialog.close">×</button></form></div>
+  <div class="dlg-body">
+    <p data-i18n="support.intro"></p>
+    <div class="actions">
+      <a id="support-help" class="btn" href="https://github.com/mradeck/geotiff-inspector#readme" target="_blank" rel="noopener noreferrer" data-i18n="support.help"></a>
+      <a id="support-bugreport" class="btn" href="mailto:michael.radeck@email.de" data-i18n="support.bugreport"></a>
+      <a id="support-contact" class="btn" href="mailto:michael.radeck@email.de" data-i18n="support.contact"></a>
+    </div>
+    <p class="addr">michael.radeck@email.de</p>
+    <p data-i18n="support.bugHint"></p>
+    <p class="muted" data-i18n="support.privacy"></p>
+  </div>
+</dialog>
+
+<dialog id="licenses-dialog" aria-labelledby="licenses-title">
+  <div class="dlg-head"><h2 id="licenses-title" data-i18n="footer.licenses"></h2><form method="dialog"><button type="submit" data-i18n-aria-label="dialog.close">×</button></form></div>
+  <div class="dlg-body">
+    <p data-i18n="lic.intro"></p>
+    <table>
+      <tr><th data-i18n="lic.component"></th><td><b data-i18n="lic.license"></b> · <span data-i18n="lic.use"></span></td></tr>
+      <tr><th data-i18n="lic.app"></th><td>MIT © Michael Radeck · <span data-i18n="lic.appUse"></span></td></tr>
+      <tr><th>geotiff.js 3.0.5</th><td>MIT · <span data-i18n="lic.geotiff"></span></td></tr>
+      <tr><th>proj4js 2.20.8</th><td>MIT · <span data-i18n="lic.proj4"></span></td></tr>
+      <tr><th>Leaflet 1.9.4</th><td>BSD-2-Clause · <span data-i18n="lic.leaflet"></span></td></tr>
+      <tr><th>OpenStreetMap</th><td>ODbL · <span data-i18n="lic.osmHolder"></span> · <span data-i18n="lic.osm"></span></td></tr>
+      <tr><th data-i18n="lic.crs"></th><td>MIT · <span data-i18n="lic.crsSrc"></span></td></tr>
+    </table>
+  </div>
+</dialog>
 
 <script src="vendor/geotiff.js"></script>
 <script src="vendor/proj4.js"></script>
 <script src="vendor/leaflet.js"></script>
 <script src="crsCatalog.js"></script>
+<script src="i18n.js"></script>
 <script src="inspectorCore.js"></script>
 <script>
 "use strict";
-const VERSION = "v26.11.1.0";
-document.getElementById("ver").textContent = VERSION;
-document.title = `GeoTIFF-Inspektor ${VERSION}`;
-
+const VERSION = "26.4.1";
 const C = window.GeoTiffInspector;
-const MAX_FULL_READ_CELLS = 25e6;      // darüber nur aus einer Übersicht lesen
-const PREVIEW_MAX_SIDE = 1400;         // Kantenlänge des Kartenbildes in Pixeln
+const { t } = window.I18N;
+const MAX_FULL_READ_CELLS = 25e6;
+const PREVIEW_MAX_SIDE = 1400;
 const COLORS = ["#ff5a5f", "#4da3ff", "#ffb020", "#46c07a", "#b06bff", "#00c2c7", "#ff7ac6", "#9bd13b"];
 
+// ---------------------------------------------------------------------------
+// Sprache und Interface-Farbe
+// ---------------------------------------------------------------------------
+const FLAG_DE = '<svg class="flag" viewBox="0 0 30 20" aria-hidden="true"><path fill="#000" d="M0 0h30v7H0z"/><path fill="#d00" d="M0 7h30v6H0z"/><path fill="#ffce00" d="M0 13h30v7H0z"/></svg>';
+const FLAG_GB = '<svg class="flag" viewBox="0 0 60 40" aria-hidden="true"><defs><clipPath id="gb-clip"><path d="M0 0h60v40H0z"/></clipPath></defs><g clip-path="url(#gb-clip)"><path fill="#012169" d="M0 0h60v40H0z"/><path stroke="#fff" stroke-width="8" d="m0 0 60 40M0 40 60 0"/><path stroke="#c8102e" stroke-width="3" d="m0 0 60 40M0 40 60 0"/><path stroke="#fff" stroke-width="13" d="M30 0v40M0 20h60"/><path stroke="#c8102e" stroke-width="8" d="M30 0v40M0 20h60"/></g></svg>';
+const ICON = {
+  auto: '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>',
+  light: '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>',
+  dark: '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5A8.5 8.5 0 0 1 9.5 3.5a8.5 8.5 0 1 0 11 11z" fill="currentColor"/></svg>',
+};
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* nur Sitzung */ } },
+};
+let themeMode = ["light", "dark"].includes(store.get("gti.theme")) ? store.get("gti.theme") : "auto";
+
+function applyTheme() {
+  if (themeMode === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", themeMode);
+  const btn = document.getElementById("btn-theme");
+  btn.innerHTML = ICON[themeMode];
+  const label = t(`theme.${themeMode}`);
+  btn.title = label; btn.setAttribute("aria-label", label);
+}
+document.getElementById("btn-theme").addEventListener("click", () => {
+  themeMode = themeMode === "auto" ? "light" : themeMode === "light" ? "dark" : "auto";
+  store.set("gti.theme", themeMode);
+  applyTheme();
+});
+
+function applyStaticTexts() {
+  const lang = I18N.getLanguage();
+  document.documentElement.lang = lang;
+  document.title = `${t("app.title")} v${VERSION}`;
+  document.querySelectorAll("[data-i18n]").forEach((n) => { n.textContent = t(n.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-html]").forEach((n) => { n.innerHTML = t(n.dataset.i18nHtml); });
+  document.querySelectorAll("[data-i18n-aria-label]").forEach((n) => n.setAttribute("aria-label", t(n.dataset.i18nAriaLabel)));
+  const btn = document.getElementById("btn-lang");
+  btn.innerHTML = `${lang === "de" ? FLAG_DE : FLAG_GB}<span>${lang.toUpperCase()}</span>`;
+  btn.title = t("lang.toggle"); btn.setAttribute("aria-label", t("lang.toggle"));
+  document.getElementById("footer-version").textContent = t("footer.version", { v: VERSION });
+  const subject = (kind) => `GeoTIFF-Inspektor v${VERSION} – ${t(kind === "bug" ? "support.bugSubject" : "support.contactSubject")}`;
+  document.getElementById("support-bugreport").href = `mailto:michael.radeck@email.de?subject=${encodeURIComponent(subject("bug"))}&body=${encodeURIComponent(t("support.bugBody"))}`;
+  document.getElementById("support-contact").href = `mailto:michael.radeck@email.de?subject=${encodeURIComponent(subject("contact"))}`;
+  applyTheme();
+}
+document.getElementById("btn-lang").addEventListener("click", () => {
+  const next = I18N.getLanguage() === "de" ? "en" : "de";
+  store.set("gti.lang", next);
+  I18N.setLanguage(next);
+});
+I18N.onLanguageChange(() => {
+  applyStaticTexts();
+  for (const e of entries) { renderCard(e); refreshMapTexts(e); }
+  updateLegend();
+  renderComparison();
+});
+
+document.getElementById("ver").textContent = `v${VERSION}`;
+document.getElementById("footer-year").textContent = String(new Date().getFullYear());
+document.getElementById("footer-support").addEventListener("click", () => document.getElementById("support-dialog").showModal());
+document.getElementById("footer-licenses").addEventListener("click", () => document.getElementById("licenses-dialog").showModal());
+
+// ---------------------------------------------------------------------------
+// Karte
+// ---------------------------------------------------------------------------
 const map = L.map("map", { zoomControl: true, worldCopyJump: true }).setView([51.2, 10.4], 5);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19, attribution: "© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>-Mitwirkende",
+  maxZoom: 19, attribution: "© <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a>",
 }).addTo(map);
 L.control.scale({ imperial: false }).addTo(map);
 
@@ -154,13 +325,13 @@ let colorIndex = 0;
 const drop = document.getElementById("drop");
 const fileInput = document.getElementById("file");
 fileInput.addEventListener("change", () => { handleFiles([...fileInput.files]); fileInput.value = ""; });
-["dragenter", "dragover"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
-["dragleave", "drop"].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("drag"); }));
 drop.addEventListener("drop", (e) => handleFiles([...e.dataTransfer.files]));
 
 async function handleFiles(files) {
   for (const f of files) {
-    if (!/\.tiff?$/i.test(f.name)) { addErrorCard(f.name, "Keine .tif/.tiff-Datei."); continue; }
+    if (!/\.tiff?$/i.test(f.name)) { addErrorCard(f.name, t("card.notTiff")); continue; }
     await addFile(f);
   }
   renderComparison();
@@ -182,27 +353,26 @@ function addErrorCard(name, msg) {
 
 async function addFile(file) {
   const card = el("section", { class: "card" });
-  const status = el("div", { class: "status", text: "Lese Metadaten …" });
+  const status = el("div", { class: "status", text: t("card.readingMeta") });
   card.append(el("div", { class: "card-head" }, el("h2", { text: file.name })), status);
   document.getElementById("cards").append(card);
   try {
     const tiff = await GeoTIFF.fromBlob(file);
     const info = await C.readTiffInfo(tiff, { name: file.name, size: file.size });
-    const entry = { file, tiff, info, card, color: COLORS[colorIndex++ % COLORS.length], layers: [], values: null };
+    const entry = { file, tiff, info, card, color: COLORS[colorIndex++ % COLORS.length], layers: [], values: null, mapNote: null };
     entry.geom = C.deriveGeometry(info);
     entry.crs = C.resolveCrs(info, window.CRS_CATALOG);
-    status.textContent = "Lese Werte …";
+    status.textContent = t("card.readingValues");
     entry.stats = await computeStats(entry);
     entry.cls = C.classify(info, entry.crs, entry.geom, entry.stats);
     entry.known = C.recognizeKnown(info, entry.crs, entry.geom);
-    entry.findings = C.buildFindings(info, entry.crs, entry.geom, entry.cls, entry.stats);
     entries.push(entry);
     renderCard(entry);
     await drawOnMap(entry, true);
   } catch (err) {
     console.error(err);
     status.className = "cmp-bad";
-    status.textContent = `Datei nicht lesbar: ${err.message}`;
+    status.textContent = t("card.unreadable", { msg: err.message });
   }
 }
 
@@ -219,8 +389,7 @@ function pickPreviewImage(entry, maxSide) {
 async function computeStats(entry) {
   const { info } = entry;
   if (info.spp !== 1 || !entry.geom.ok) return null;
-  const cells = info.width * info.height;
-  if (cells <= MAX_FULL_READ_CELLS) {
+  if (info.width * info.height <= MAX_FULL_READ_CELLS) {
     const img = await entry.tiff.getImage(0);
     const [vals] = await img.readRasters({ samples: [0] });
     entry.values = vals;
@@ -237,7 +406,7 @@ async function computeStats(entry) {
 }
 
 // ---------------------------------------------------------------------------
-// Karte
+// Kartenbild
 // ---------------------------------------------------------------------------
 function registerCrs(entry) {
   const def = entry.crsOverride || entry.crs.proj4;
@@ -246,7 +415,6 @@ function registerCrs(entry) {
   if (!proj4.defs(key)) proj4.defs(key, def);
   return key;
 }
-
 function toLonLatFn(entry) {
   const key = registerCrs(entry);
   if (!key) return null;
@@ -254,11 +422,9 @@ function toLonLatFn(entry) {
   return (x, y) => conv.forward([x, y]);
 }
 function fromLonLatFn(entry) {
-  const key = registerCrs(entry);
-  const conv = proj4("EPSG:4326", key);
+  const conv = proj4("EPSG:4326", registerCrs(entry));
   return (lon, lat) => conv.forward([lon, lat]);
 }
-
 function densify(pts, n) {
   const out = [];
   for (let k = 0; k < pts.length; k++) {
@@ -267,60 +433,71 @@ function densify(pts, n) {
   }
   return out;
 }
-
 function nodeHullPoints(geom, info) {
   const W = info.width, H = info.height;
   return [geom.nodeToModel(0, 0), geom.nodeToModel(W - 1, 0), geom.nodeToModel(W - 1, H - 1), geom.nodeToModel(0, H - 1)];
 }
-
 function lonLatPolygon(toLL, pts) {
   return densify(pts, 48).map(([x, y]) => { const [lon, lat] = toLL(x, y); return [lat, lon]; }).filter(([la, lo]) => Number.isFinite(la) && Number.isFinite(lo));
 }
-
 const R = 6378137;
 const mercY = (lat) => R * Math.log(Math.tan(Math.PI / 4 + (Math.max(-85.05, Math.min(85.05, lat)) * Math.PI) / 360));
 const latFromMercY = (y) => (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI;
 
+/** Kartenhinweis als Schlüssel+Parameter merken, damit er beim Sprachwechsel neu übersetzt wird. */
+function setMapNote(entry, key, params) {
+  entry.mapNote = { key, params };
+  if (entry.mapStatus) entry.mapStatus.textContent = mapNoteText(entry.mapNote);
+}
+function mapNoteText(n) {
+  if (!n) return "";
+  const p = { ...(n.params || {}) };
+  if (n.key === "map.noteRgb") p.src = p.overview ? t("map.overviewN", { n: p.overview }) : t("map.mainImage");
+  if (n.key === "map.noteValues") { p.lo = C.fmtNum(p.lo, 2); p.hi = C.fmtNum(p.hi, 2); }
+  return t(n.key, p);
+}
+function refreshMapTexts(entry) {
+  for (const l of entry.layers) {
+    if (l.options && l.options.tipKey) l.setTooltipContent(t(l.options.tipKey, { f: entry.info.fileName }));
+  }
+}
+
 async function drawOnMap(entry, fit) {
   for (const l of entry.layers) map.removeLayer(l);
   entry.layers = [];
-  const ctl = entry.mapStatus;
-  if (!entry.geom.ok) { ctl.textContent = "Ohne Georeferenz keine Kartenanzeige."; return; }
+  entry.legend = null;
+  if (!entry.geom.ok) { setMapNote(entry, "map.noGeoref"); return; }
   const toLL = toLonLatFn(entry);
-  if (!toLL) { ctl.textContent = "CRS unbekannt — proj4-Definition eintragen, um die Datei auf der Karte zu zeigen."; return; }
-
+  if (!toLL) { setMapNote(entry, "map.needProj4"); return; }
   const cellPoly = lonLatPolygon(toLL, entry.geom.corners);
   const nodePoly = lonLatPolygon(toLL, nodeHullPoints(entry.geom, entry.info));
-  if (cellPoly.length < 3) { ctl.textContent = "Umrechnung in WGS 84 fehlgeschlagen (prüfe das CRS)."; return; }
+  if (cellPoly.length < 3) { setMapNote(entry, "map.wgsFailed"); return; }
 
-  ctl.textContent = "Erzeuge Kartenbild …";
+  setMapNote(entry, "map.rendering");
   try {
     const overlay = await buildOverlay(entry, toLL);
     if (overlay) {
       entry.overlay = L.imageOverlay(overlay.url, overlay.bounds, { opacity: entry.opacity ?? 0.75, interactive: false }).addTo(map);
       entry.layers.push(entry.overlay);
       entry.legend = overlay.legend;
-    }
-    ctl.textContent = overlay ? overlay.note : "Rasterbild übersprungen (zu groß ohne Übersichten).";
+      setMapNote(entry, overlay.note.key, overlay.note.params);
+    } else setMapNote(entry, "map.skipped");
   } catch (err) {
     console.error(err);
-    ctl.textContent = `Rasterbild nicht darstellbar: ${err.message}. Umriss wird trotzdem gezeigt.`;
+    setMapNote(entry, "map.failed", { msg: err.message });
   }
 
-  const cellLayer = L.polygon(cellPoly, { color: entry.color, weight: 2, fill: false }).bindTooltip(`${entry.info.fileName} — Zellhülle (Außenkante der Pixel)`, { sticky: true });
-  const nodeLayer = L.polygon(nodePoly, { color: entry.color, weight: 1.5, dashArray: "5 5", fill: false }).bindTooltip(`${entry.info.fileName} — Knotenhülle (äußerste Wertestellen)`, { sticky: true });
-  cellLayer.addTo(map); nodeLayer.addTo(map);
-  entry.layers.push(cellLayer, nodeLayer);
-
+  const f = entry.info.fileName;
+  const cellLayer = L.polygon(cellPoly, { color: entry.color, weight: 2, fill: false, tipKey: "map.cellHull" }).bindTooltip(t("map.cellHull", { f }), { sticky: true });
+  const nodeLayer = L.polygon(nodePoly, { color: entry.color, weight: 1.5, dashArray: "5 5", fill: false, tipKey: "map.nodeHull" }).bindTooltip(t("map.nodeHull", { f }), { sticky: true });
   const [nLon, nLat] = toLL(...entry.geom.firstNode);
   const [cLon, cLat] = toLL(...entry.geom.firstCorner);
-  const m1 = L.circleMarker([nLat, nLon], { radius: 5, color: entry.color, fillOpacity: 1 }).bindTooltip("Erster Knoten (Wert von Zeile 0, Spalte 0)");
-  const m2 = L.circleMarker([cLat, cLon], { radius: 4, color: entry.color, fillOpacity: 0, weight: 2 }).bindTooltip("Äußere Ecke des ersten Pixels");
-  m1.addTo(map); m2.addTo(map);
-  entry.layers.push(m1, m2);
+  const m1 = L.circleMarker([nLat, nLon], { radius: 5, color: entry.color, fillOpacity: 1, tipKey: "map.firstNode" }).bindTooltip(t("map.firstNode"));
+  const m2 = L.circleMarker([cLat, cLon], { radius: 4, color: entry.color, fillOpacity: 0, weight: 2, tipKey: "map.firstCorner" }).bindTooltip(t("map.firstCorner"));
+  for (const l of [cellLayer, nodeLayer, m1, m2]) { l.addTo(map); entry.layers.push(l); }
   entry.bounds = L.latLngBounds(cellPoly);
   updateLegend();
-  if (fit) map.fitBounds(L.latLngBounds(entries.filter((e) => e.bounds).map((e) => e.bounds).reduce((a, b) => a.extend(b))), { padding: [20, 20] });
+  if (fit) map.fitBounds(entries.filter((e) => e.bounds).map((e) => e.bounds).reduce((a, b) => L.latLngBounds(a.getSouthWest(), a.getNorthEast()).extend(b)), { padding: [20, 20] });
 }
 
 async function buildOverlay(entry, toLL) {
@@ -331,7 +508,6 @@ async function buildOverlay(entry, toLL) {
   const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(pick.width, pick.height));
   const sw = Math.max(1, Math.round(pick.width * scale)), sh = Math.max(1, Math.round(pick.height * scale));
 
-  // Quellbild als RGBA
   const src = new Uint8ClampedArray(sw * sh * 4);
   let legend = null, note;
   const isRgb = info.spp >= 3 || info.photometric === 2 || info.photometric === 6 || info.photometric === 3;
@@ -356,7 +532,7 @@ async function buildOverlay(entry, toLL) {
       }
       for (let k = 0; k < sw * sh; k++) src[k * 4 + 3] = 255;
     }
-    note = `Bild aus ${pick.index === 0 ? "dem Hauptbild" : `Übersicht ${pick.index}`} (${sw} × ${sh} px), auf Web-Mercator umgerechnet.`;
+    note = { key: "map.noteRgb", params: { overview: pick.index, w: sw, h: sh } };
   } else {
     const [vals] = await img.readRasters({ samples: [0], width: sw, height: sh });
     const nd = info.nodata;
@@ -368,16 +544,16 @@ async function buildOverlay(entry, toLL) {
     for (let k = 0; k < sw * sh; k++) {
       const v = vals[k];
       if (isNd(v)) { src[k * 4 + 3] = 0; continue; }
-      const t = (v - lo) / (hi - lo || 1);
-      if (gray) { const g = Math.max(0, Math.min(255, t * 255)); src[k * 4] = src[k * 4 + 1] = src[k * 4 + 2] = g; }
-      else { const [r, g, b] = C.rampColor(t); src[k * 4] = r; src[k * 4 + 1] = g; src[k * 4 + 2] = b; }
+      const s = (v - lo) / (hi - lo || 1);
+      if (gray) { const g = Math.max(0, Math.min(255, s * 255)); src[k * 4] = src[k * 4 + 1] = src[k * 4 + 2] = g; }
+      else { const [r, g, b] = C.rampColor(s); src[k * 4] = r; src[k * 4 + 1] = g; src[k * 4 + 2] = b; }
       src[k * 4 + 3] = 255;
     }
-    if (!gray) legend = { lo, hi, unit: "m", name: entry.cls.kind === "geoid" ? "Undulation" : "Wert" };
-    note = `Werte farbcodiert (${C.fmtNum(lo, 2)} … ${C.fmtNum(hi, 2)}), NoData transparent, auf Web-Mercator umgerechnet.`;
+    if (!gray) legend = { lo, hi, unit: "m", nameKey: entry.cls.kind === "geoid" ? "legend.undulation" : "legend.value" };
+    note = { key: "map.noteValues", params: { lo, hi } };
   }
 
-  // Zielbereich in Web-Mercator
+  // Zielbereich in Web-Mercator, Bild pixelweise umrechnen
   const hull = densify(geom.corners, 48).map(([x, y]) => toLL(x, y)).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
   let lonMin = Math.min(...hull.map((p) => p[0])), lonMax = Math.max(...hull.map((p) => p[0]));
   const latMin = Math.max(-85.05, Math.min(...hull.map((p) => p[1]))), latMax = Math.min(85.05, Math.max(...hull.map((p) => p[1])));
@@ -395,17 +571,16 @@ async function buildOverlay(entry, toLL) {
   const geographic = entry.crs.isGeographic && !entry.crsOverride;
   const fromLL = geographic ? null : fromLonLatFn(entry);
   const W = info.width, H = info.height;
-  const lonSpanSrc = geographic ? [geom.cellExtent.minX, geom.cellExtent.maxX] : null;
+  const lonSpan = [geom.cellExtent.minX, geom.cellExtent.maxX];
 
   for (let r = 0; r < oh; r++) {
-    const my = y1 - ((r + 0.5) / oh) * (y1 - y0);
-    const lat = latFromMercY(my);
+    const lat = latFromMercY(y1 - ((r + 0.5) / oh) * (y1 - y0));
     for (let c = 0; c < ow; c++) {
       const lon = lonMin + ((c + 0.5) / ow) * (lonMax - lonMin);
       let x, y;
       if (geographic) {
         x = lon; y = lat;
-        if (x < lonSpanSrc[0]) x += 360; else if (x > lonSpanSrc[1]) x -= 360;
+        if (x < lonSpan[0]) x += 360; else if (x > lonSpan[1]) x -= 360;
       } else { [x, y] = fromLL(lon, lat); }
       const [u, v] = geom.modelToEdge(x, y);
       if (!(u >= 0 && u < W && v >= 0 && v < H)) continue;
@@ -435,55 +610,53 @@ function percentileRange(vals, nd) {
 function updateLegend() {
   const box = document.getElementById("legend");
   const seen = new Set();
-  const withLegend = entries.filter((e) => e.legend && e.visible !== false).filter((e) => {
-    const k = `${e.legend.name}|${e.legend.lo}|${e.legend.hi}`;
+  const list = entries.filter((e) => e.legend && e.visible !== false).filter((e) => {
+    const k = `${e.legend.nameKey}|${e.legend.lo}|${e.legend.hi}`;
     if (seen.has(k)) return false; seen.add(k); return true;
   }).slice(-4);
-  if (!withLegend.length) { box.style.display = "none"; return; }
-  const grad = `linear-gradient(to right, ${C.RAMP.map(([t, c]) => `rgb(${c.join(",")}) ${t * 100}%`).join(", ")})`;
   box.innerHTML = "";
-  for (const e of withLegend) {
-    box.append(el("div", { text: `${e.legend.name} — ${e.info.fileName}` }),
+  if (!list.length) { box.hidden = true; return; }
+  const grad = `linear-gradient(to right, ${C.RAMP.map(([s, c]) => `rgb(${c.join(",")}) ${s * 100}%`).join(", ")})`;
+  for (const e of list) {
+    box.append(el("div", { text: `${t(e.legend.nameKey)} — ${e.info.fileName}` }),
       el("div", { class: "bar", style: `background:${grad}` }),
       el("div", { class: "scale" }, el("span", { text: `${C.fmtNum(e.legend.lo, 2)} ${e.legend.unit}` }), el("span", { text: `${C.fmtNum(e.legend.hi, 2)} ${e.legend.unit}` })));
   }
-  box.style.display = "block";
+  box.hidden = false;
 }
 
 // ---------------------------------------------------------------------------
 // Info-Kachel je Datei
 // ---------------------------------------------------------------------------
 function kv(rows) {
-  const t = el("table");
+  const tb = el("table");
   for (const [k, v, mono] of rows) {
     if (v === undefined || v === null || v === "") continue;
-    t.append(el("tr", {}, el("th", { text: k }), el("td", { class: mono ? "mono" : "", text: String(v) })));
+    tb.append(el("tr", {}, el("th", { text: k }), el("td", { class: mono ? "mono" : "", text: String(v) })));
   }
-  return t;
+  return tb;
 }
 
 function renderCard(entry) {
-  const { info, geom, crs, cls, known, stats, findings, card } = entry;
+  const { info, geom, crs, cls, known, stats, card } = entry;
+  const openState = [...card.querySelectorAll("details")].map((d) => d.open);
   card.innerHTML = "";
+  const findings = C.buildFindings(info, crs, geom, cls, stats);
   const unit = crs.isGeographic ? "°" : " m";
-  const head = el("div", { class: "card-head" },
+  card.append(el("div", { class: "card-head" },
     el("span", { class: "swatch", style: `background:${entry.color}` }),
     el("h2", { text: info.fileName }),
-    el("span", {}, el("span", { class: `badge ${cls.kind}`, text: cls.label }), el("span", { class: "conf", text: `Sicherheit ${cls.confidence}` })));
-  card.append(head);
-  card.append(el("p", { class: "why", text: `Gründe: ${cls.reasons.join(" · ") || "keine eindeutigen Merkmale"}` }));
+    el("span", {}, el("span", { class: `badge ${cls.kind}`, text: C.kindLabel(cls.kind) }), el("span", { class: "conf", text: t("card.confidence", { c: t(`conf.${cls.confidence}`) }) }))));
+  card.append(el("p", { class: "why", text: t("card.reasons", { r: cls.reasons.map(C.reasonText).join(" · ") || t("card.noReasons") }) }));
 
   if (known) {
-    card.append(el("div", { class: "known" },
-      el("span", { class: "fam", text: known.family }),
-      el("b", { text: known.title }),
-      el("ul", { class: "known-notes" }, ...known.notes.map((n) => el("li", { text: n })))));
+    const k = C.knownText(known);
+    card.append(el("div", { class: "known" }, el("span", { class: "fam", text: k.family }), el("b", { text: k.title }),
+      el("ul", { class: "known-notes" }, ...k.notes.map((n) => el("li", { text: n })))));
   }
-
   card.append(el("ul", { class: "findings" }, ...findings.map((f) => el("li", { class: f.level, text: f.text }))));
 
-  // Kartensteuerung
-  entry.mapStatus = el("span", { class: "status" });
+  entry.mapStatus = el("span", { class: "status", text: mapNoteText(entry.mapNote) });
   const opacity = el("input", { type: "range", min: "0", max: "1", step: "0.05", value: String(entry.opacity ?? 0.75) });
   opacity.addEventListener("input", () => { entry.opacity = Number(opacity.value); entry.overlay?.setOpacity(entry.opacity); });
   const vis = el("input", { type: "checkbox" }); vis.checked = entry.visible !== false;
@@ -493,67 +666,70 @@ function renderCard(entry) {
     updateLegend();
   });
   card.append(el("div", { class: "row" },
-    el("button", { text: "Auf Karte zeigen", onclick: () => entry.bounds && map.fitBounds(entry.bounds, { padding: [20, 20] }) }),
-    el("label", { class: "small" }, vis, "sichtbar"),
-    el("label", { class: "small" }, "Deckkraft", opacity),
-    el("button", { text: "Entfernen", onclick: () => removeEntry(entry) })));
+    el("button", { text: t("card.showOnMap"), onclick: () => entry.bounds && map.fitBounds(entry.bounds, { padding: [20, 20] }) }),
+    el("label", { class: "small" }, vis, t("card.visible")),
+    el("label", { class: "small" }, t("card.opacity"), opacity),
+    el("button", { text: t("card.remove"), onclick: () => removeEntry(entry) })));
   card.append(entry.mapStatus);
 
   if (!crs.proj4 || entry.crsOverride) {
     const inp = el("input", { type: "text", placeholder: "+proj=utm +zone=32 +ellps=GRS80 +units=m +no_defs", value: entry.crsOverride || "" });
     card.append(el("div", { class: "row" }, el("label", { class: "small", text: "proj4:" }), inp,
-      el("button", { text: "Anwenden", onclick: async () => { entry.crsOverride = inp.value.trim() || null; await drawOnMap(entry, true); } })));
+      el("button", { text: t("card.apply"), onclick: async () => { entry.crsOverride = inp.value.trim() || null; await drawOnMap(entry, true); } })));
   }
 
-  // Übersicht
-  const sf = info.sampleFormat.map((s) => C.SAMPLE_FORMAT[s] ?? s).join(", ") || "unsigned int (Vorgabe)";
+  const sf = info.sampleFormat.map(C.sampleFormatName).join(", ") || t("row.sfDefault");
   const rows = [
-    ["Rastergröße", `${info.width} × ${info.height} (${C.fmtNum(info.width * info.height, 0)} Zellen)`],
-    ["Bänder", `${info.spp} × ${info.bps.join("/")} Bit, ${sf}`],
-    ["Photometrie", C.PHOTOMETRIC[info.photometric] ?? info.photometric],
-    ["Kompression", `${C.COMPRESSION[info.compression] ?? info.compression}${info.predictor ? `, Prädiktor ${C.PREDICTOR[info.predictor] ?? info.predictor}` : ""}`],
-    ["Speicherlayout", info.tileWidth ? `Kacheln ${info.tileWidth} × ${info.tileHeight}` : `Streifen à ${info.rowsPerStrip ?? "?"} Zeilen`],
-    ["Bilder in der Datei", info.images.map((im) => `${im.width}×${im.height}${im.isMask ? " (Maske)" : im.index ? " (Übersicht)" : ""}`).join(", ")],
-    ["Dateigröße", C.fmtBytes(info.fileSize)],
+    [t("row.size"), t("row.sizeVal", { w: info.width, h: info.height, n: C.fmtNum(info.width * info.height, 0) })],
+    [t("row.bands"), t("row.bandsVal", { spp: info.spp, bps: info.bps.join("/"), sf })],
+    [t("row.photometric"), info.photometric !== undefined ? C.photometricName(info.photometric) : ""],
+    [t("row.compression"), C.compressionName(info.compression) + (info.predictor ? t("row.predictorSuffix", { p: C.predictorName(info.predictor) }) : "")],
+    [t("row.layout"), info.tileWidth ? t("row.tiles", { w: info.tileWidth, h: info.tileHeight }) : t("row.strips", { n: info.rowsPerStrip ?? "?" })],
+    [t("row.images"), info.images.map((im) => `${im.width}×${im.height}${im.isMask ? t("row.mask") : im.index ? t("row.overviewImg") : ""}`).join(", ")],
+    [t("row.fileSize"), C.fmtBytes(info.fileSize)],
   ];
   if (geom.ok) rows.push(
-    ["Georeferenz aus", geom.source],
-    ["Registrierung", geom.rasterType === "unset" ? "nicht angegeben (TIFF-Vorgabe PixelIsArea angenommen)" : C.RASTER_TYPE[geom.rasterType === "point" ? 2 : 1]],
-    ["Zellgröße", `${C.fmtNum(geom.cellX, 10)}${unit} × ${C.fmtNum(geom.cellY, 10)}${unit}${crs.isGeographic ? ` (= ${C.fmtNum(geom.cellX * 3600, 4)}″ × ${C.fmtNum(geom.cellY * 3600, 4)}″)` : ""}`],
-    ["Erster Knoten", `${C.fmtNum(geom.firstNode[0], 9)} / ${C.fmtNum(geom.firstNode[1], 9)}`, true],
-    ["Knotenhülle", `X ${C.fmtNum(geom.nodeExtent.minX, 9)} … ${C.fmtNum(geom.nodeExtent.maxX, 9)}, Y ${C.fmtNum(geom.nodeExtent.minY, 9)} … ${C.fmtNum(geom.nodeExtent.maxY, 9)}`, true],
-    ["Zellhülle", `X ${C.fmtNum(geom.cellExtent.minX, 9)} … ${C.fmtNum(geom.cellExtent.maxX, 9)}, Y ${C.fmtNum(geom.cellExtent.minY, 9)} … ${C.fmtNum(geom.cellExtent.maxY, 9)}`, true]);
+    [t("row.georefFrom"), C.geometrySource(geom)],
+    [t("row.registration"), geom.rasterType === "unset" ? t("row.regUnset") : geom.rasterType === "point" ? "PixelIsPoint" : "PixelIsArea"],
+    [t("row.cellSize"), `${C.fmtNum(geom.cellX, 10)}${unit} × ${C.fmtNum(geom.cellY, 10)}${unit}${crs.isGeographic ? ` (= ${C.fmtNum(geom.cellX * 3600, 4)}″ × ${C.fmtNum(geom.cellY * 3600, 4)}″)` : ""}`],
+    [t("row.firstNode"), `${C.fmtNum(geom.firstNode[0], 9)} / ${C.fmtNum(geom.firstNode[1], 9)}`, true],
+    [t("row.nodeHull"), `X ${C.fmtNum(geom.nodeExtent.minX, 9)} … ${C.fmtNum(geom.nodeExtent.maxX, 9)}, Y ${C.fmtNum(geom.nodeExtent.minY, 9)} … ${C.fmtNum(geom.nodeExtent.maxY, 9)}`, true],
+    [t("row.cellHull"), `X ${C.fmtNum(geom.cellExtent.minX, 9)} … ${C.fmtNum(geom.cellExtent.maxX, 9)}, Y ${C.fmtNum(geom.cellExtent.minY, 9)} … ${C.fmtNum(geom.cellExtent.maxY, 9)}`, true]);
+  const cl = C.crsLabel(crs);
   rows.push(
-    ["Lagebezug", `${crs.code ?? "–"}${crs.label ? ` — ${crs.label}` : ""} (${crs.modelTypeLabel})`],
-    ["Höhenbezug (GeoKey)", crs.vertical ? `EPSG:${crs.vertical.code} — ${crs.vertical.label}` : ""],
-    ["Zitat", crs.citation],
-    ["Beschreibung", C.valueToText(info.description)],
-    ["Copyright", C.valueToText(info.copyright)],
-    ["Software", C.valueToText(info.software)],
-    ["Datum", C.valueToText(info.dateTime)],
-    ["NoData", info.nodataText !== undefined ? (Number.isNaN(info.nodata) ? "NaN" : info.nodataText) : ""]);
-  if (stats) rows.push(["Werte (Band 1)", `${C.fmtNum(stats.min, 4)} … ${C.fmtNum(stats.max, 4)}, Mittel ${C.fmtNum(stats.mean, 4)}${stats.fromOverview ? " (aus Übersicht)" : ""}`],
-    ["Leere Zellen", `${C.fmtNum(stats.nan + stats.nodata, 0)} von ${C.fmtNum(stats.count, 0)}`]);
-  card.append(el("details", { open: "" }, el("summary", { text: "Übersicht" }), kv(rows)));
+    [t("row.crs"), `${crs.code ?? "–"}${cl ? ` — ${cl}` : ""} (${C.modelTypeName(crs.modelType)})`],
+    [t("row.vertical"), crs.verticalCode ? `EPSG:${crs.verticalCode} — ${C.verticalName(crs.verticalCode)}` : ""],
+    [t("row.citation"), crs.citation],
+    [t("row.description"), info.description !== undefined ? C.valueToText(info.description) : ""],
+    [t("row.copyright"), info.copyright !== undefined ? C.valueToText(info.copyright) : ""],
+    [t("row.software"), info.software !== undefined ? C.valueToText(info.software) : ""],
+    [t("row.date"), info.dateTime !== undefined ? C.valueToText(info.dateTime) : ""],
+    [t("row.nodata"), info.nodataText !== undefined ? (Number.isNaN(info.nodata) ? "NaN" : info.nodataText) : ""]);
+  if (stats) rows.push(
+    [t("row.values"), t("row.valuesVal", { min: C.fmtNum(stats.min, 4), max: C.fmtNum(stats.max, 4), mean: C.fmtNum(stats.mean, 4), ov: stats.fromOverview ? t("row.fromOverview") : "" })],
+    [t("row.empty"), t("row.emptyVal", { n: C.fmtNum(stats.nan + stats.nodata, 0), total: C.fmtNum(stats.count, 0) })]);
+  card.append(el("details", { open: "" }, el("summary", { text: t("card.overview") }), kv(rows)));
 
   const gk = Object.entries(info.geoKeys).map(([k, v]) => [k, C.valueToText(v), true]);
-  card.append(el("details", {}, el("summary", { text: `GeoKeys (${gk.length})` }), gk.length ? kv(gk) : el("p", { class: "empty", text: "keine" })));
+  card.append(el("details", {}, el("summary", { text: t("card.geokeys", { n: gk.length }) }), gk.length ? kv(gk) : el("p", { class: "empty", text: t("card.none") })));
 
-  const gm = info.gdalItems.map((it) => [`${it.name}${it.sample !== undefined ? ` [Band ${Number(it.sample) + 1}]` : ""}${it.role ? ` (${it.role})` : ""}`, it.value, true]);
-  const gmBox = el("details", {}, el("summary", { text: `GDAL-Metadaten (${gm.length})` }));
-  if (gm.length) { gmBox.append(kv(gm), el("pre", { text: info.gdalXml })); } else gmBox.append(el("p", { class: "empty", text: "keine" }));
+  const gm = info.gdalItems.map((it) => [`${it.name}${it.sample !== undefined ? ` [${t("band", { n: Number(it.sample) + 1 })}]` : ""}${it.role ? ` (${it.role})` : ""}`, it.value, true]);
+  const gmBox = el("details", {}, el("summary", { text: t("card.gdalMeta", { n: gm.length }) }));
+  if (gm.length) gmBox.append(kv(gm), el("pre", { text: info.gdalXml })); else gmBox.append(el("p", { class: "empty", text: t("card.none") }));
   card.append(gmBox);
 
-  const tags = info.tags.map((t) => [t.name, C.valueToText(t.value), true]);
-  card.append(el("details", {}, el("summary", { text: `Alle TIFF-Tags (${tags.length})` }), kv(tags)));
+  const tags = info.tags.map((x) => [x.name, C.valueToText(x.value), true]);
+  card.append(el("details", {}, el("summary", { text: t("card.allTags", { n: tags.length }) }), kv(tags)));
 
-  const all = el("details", {}, el("summary", { text: "Einordnung: alle Punktwerte" }));
-  const t = el("table");
+  const all = el("details", {}, el("summary", { text: t("card.scores") }));
+  const tb = el("table");
   for (const [k, s] of Object.entries(cls.score).sort((a, b) => b[1] - a[1])) {
-    t.append(el("tr", {}, el("th", { text: `${C.KIND_LABEL[k]} (${C.fmtNum(s, 1)})` }), el("td", { text: cls.allReasons[k].join(" · ") || "–" })));
+    tb.append(el("tr", {}, el("th", { text: `${C.kindLabel(k)} (${C.fmtNum(s, 1)})` }), el("td", { text: cls.allReasons[k].map(C.reasonText).join(" · ") || "–" })));
   }
-  all.append(t);
+  all.append(tb);
   card.append(all);
+  // Auf-/Zuklappzustand bei Sprachwechsel erhalten
+  if (openState.length) card.querySelectorAll("details").forEach((d, i) => { if (i < openState.length) d.open = openState[i]; });
 }
 
 function removeEntry(entry) {
@@ -575,35 +751,44 @@ async function ensureValues(entry) {
   return entry.values;
 }
 
+let compareRun = 0;
 async function renderComparison() {
+  const run = ++compareRun;
   const box = document.getElementById("compare");
   const body = document.getElementById("compare-body");
-  body.innerHTML = "";
   const list = entries.filter((e) => e.geom.ok);
-  if (list.length < 2) { box.hidden = true; return; }
-  box.hidden = false;
-  body.append(el("p", { class: "muted", text: "Paare mit gleichem CRS und gleicher Zellgröße werden auf ein gemeinsames Knotengitter geprüft (unter Berücksichtigung der Registrierung). Einbandige Gitter werden im Überlappungsbereich Zelle für Zelle verglichen." }));
+  if (list.length < 2) { box.hidden = true; body.innerHTML = ""; return; }
+  const frag = document.createDocumentFragment();
+  frag.append(el("p", { class: "muted", text: t("cmp.intro") }));
   const unrelated = [];
   for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
     let A = list[i], B = list[j];
     let L = C.compareLattice(A, B);
-    // Größeres Gitter als Bezug A, damit der Versatz als Lage IN A lesbar ist.
     if (L.ok && (L.col < 0 || L.row < 0)) { [A, B] = [B, A]; L = C.compareLattice(A, B); }
-    if (!L.ok && /CRS/.test(L.reason)) { unrelated.push(`${A.info.fileName} ↔ ${B.info.fileName}`); continue; }
+    if (!L.ok && L.crsMismatch) { unrelated.push(`${A.info.fileName} ↔ ${B.info.fileName}`); continue; }
     const p = el("p", {}, el("b", { text: `${A.info.fileName} ↔ ${B.info.fileName}: ` }));
-    body.append(p);
+    frag.append(p);
     if (!L.ok) { p.append(el("span", { class: "cmp-warn", text: L.reason })); continue; }
-    if (!L.overlap) { p.append(el("span", { text: `Gleiches Knotengitter (Versatz ${L.col} Spalten / ${L.row} Zeilen), aber keine Überlappung.` })); continue; }
-    p.append(el("span", { text: `Gleiches Knotengitter. Der erste Knoten von ${B.info.fileName} liegt in ${A.info.fileName} bei Spalte ${L.col}, Zeile ${L.row}; Überlappung ${L.overlap.width} × ${L.overlap.height} Knoten. ` }));
-    if (A.info.spp !== 1 || B.info.spp !== 1) { p.append(el("span", { class: "muted", text: "Wertevergleich nur für einbandige Gitter." })); continue; }
+    if (!L.overlap) { p.append(el("span", { text: t("cmp.noOverlap", { col: L.col, row: L.row }) })); continue; }
+    p.append(el("span", { text: t("cmp.same", { a: A.info.fileName, b: B.info.fileName, col: L.col, row: L.row, w: L.overlap.width, h: L.overlap.height }) }));
+    if (A.info.spp !== 1 || B.info.spp !== 1) { p.append(el("span", { class: "muted", text: t("cmp.onlySingle") })); continue; }
     const va = await ensureValues(A), vb = await ensureValues(B);
-    if (!va || !vb) { p.append(el("span", { class: "muted", text: "Zu groß für den Wertevergleich im Browser." })); continue; }
+    if (run !== compareRun) return;
+    if (!va || !vb) { p.append(el("span", { class: "muted", text: t("cmp.tooLarge") })); continue; }
     const V = C.compareValues(va, A.info.width, A.info.nodata, vb, B.info.width, B.info.nodata, L.overlap);
-    if (V.identical) p.append(el("span", { class: "cmp-ok", text: `Alle ${C.fmtNum(V.cells, 0)} Zellen bitgleich (davon ${C.fmtNum(V.ndBoth, 0)} beidseitig leer). Unterschiede liegen nur in Speicherform und Metadaten.` }));
-    else p.append(el("span", { class: "cmp-bad", text: `${C.fmtNum(V.diff, 0)} abweichende Zellen (max. |Δ| = ${C.fmtNum(V.maxAbs, 6)}), ${C.fmtNum(V.ndMismatch, 0)} Zellen nur auf einer Seite leer, ${C.fmtNum(V.same, 0)} gleich.` }));
+    if (V.identical) p.append(el("span", { class: "cmp-ok", text: t("cmp.identical", { n: C.fmtNum(V.cells, 0), nd: C.fmtNum(V.ndBoth, 0) }) }));
+    else p.append(el("span", { class: "cmp-bad", text: t("cmp.differs", { diff: C.fmtNum(V.diff, 0), max: C.fmtNum(V.maxAbs, 6), ndm: C.fmtNum(V.ndMismatch, 0), same: C.fmtNum(V.same, 0) }) }));
   }
-  if (unrelated.length) body.append(el("p", { class: "muted", text: `Nicht vergleichbar wegen unterschiedlichem CRS: ${unrelated.join(" · ")}.` }));
+  if (unrelated.length) frag.append(el("p", { class: "muted", text: t("cmp.unrelated", { list: unrelated.join(" · ") }) }));
+  if (run !== compareRun) return;
+  body.innerHTML = "";
+  body.append(frag);
+  box.hidden = false;
 }
+
+// Start
+I18N.setLanguage(document.documentElement.lang);
+applyStaticTexts();
 </script>
 </body>
 </html>
